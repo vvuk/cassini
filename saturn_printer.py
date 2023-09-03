@@ -58,7 +58,7 @@ class SaturnPrinter:
                 except socket.timeout:
                     continue
                 else:
-                    logging.debug(f'Found printer at {addr}')
+                    #logging.debug(f'Found printer at {addr}')
                     pdata = json.loads(data.decode('utf-8'))
                     printers.append(SaturnPrinter(addr, pdata))
         return printers
@@ -94,6 +94,15 @@ class SaturnPrinter:
     def describe(self):
         attrs = self.desc['Data']['Attributes']
         return f"{attrs['Name']} ({attrs['MachineName']})"
+    
+    def status(self):
+        printinfo = self.desc['Data']['Status']['PrintInfo']
+        return {
+            'status': self.desc['Data']['Status']['CurrentStatus'],
+            'filename': printinfo['Filename'],
+            'currentLayer': printinfo['CurrentLayer'],
+            'totalLayers': printinfo['TotalLayer']
+        }
 
     def send_command(self, cmdid, data=None):
         # generate 16-byte random identifier as a hex string

@@ -16,7 +16,8 @@ Copyright (C) 2023 Vladimir Vukicevic
 
 ## Usage
 
-Python 3 is required. There are no other prerequisites.
+Python 3 is required. There are no other requirements, but you should
+install the `alive-progress` package for nicer progress bars (`pip3 install alive-progress`).
 
 ### Printer status
 
@@ -24,6 +25,13 @@ Python 3 is required. There are no other prerequisites.
 $ ./cassini.py status
 0: Saturn3Ultra (ELEGOO Saturn 3 Ultra) -- 192.168.x.x
   Status: 4 Layers: 27/1002
+```
+
+### Watch live ptogress
+
+```
+$ ./cassini.py watch [interval]
+_STL_B_Warriors_1_Sword_Combined_Supported.goo |███████████████████████████████████▉ ︎   | 90% 
 ```
 
 ### File transfer

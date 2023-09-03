@@ -25,6 +25,21 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
+try:
+    from alive_progress import alive_bar
+except ImportError:
+    logging.info("Run 'pip3 install alive-progress' for better progress bars")
+    class alive_bar(object):
+        def __init__(self, total, title, **kwargs):
+            self.total = total
+            self.title = title
+        def __call__(self, x):
+            print(f"{int(x*self.total)}/{self.total} {self.title}\r", end="")
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            print("\n")
+
 async def create_mqtt_server():
     mqtt = SimpleMQTTServer('0.0.0.0', 0)
     await mqtt.start()
@@ -47,6 +62,20 @@ def print_printer_status(printers):
         print(f"{i}: {attrs['Name']} ({attrs['MachineName']})")
         print(f"  Status: {printInfo['Status']} Layers: {printInfo['CurrentLayer']}/{printInfo['TotalLayer']}")
 
+def do_watch(interval):
+    printers = SaturnPrinter.find_printers()
+    status = printers[0].status()
+    with alive_bar(total=status['totalLayers'], manual=True, elapsed=False, title=status['filename']) as bar:
+        while True:
+            printers = SaturnPrinter.find_printers()
+            if len(printers) > 0:
+                status = printers[0].status()
+                pct = status['currentLayer'] / status['totalLayers']
+                bar(pct)
+                if pct >= 1.0:
+                    break
+            time.sleep(interval)
+
 async def main():
     cmd = None
     printers = SaturnPrinter.find_printers()
@@ -62,6 +91,10 @@ async def main():
 
     if len(sys.argv) > 1:
         cmd = sys.argv[1]
+
+    if cmd == 'watch':
+        do_watch(int(sys.argv[2]) if len(sys.argv) > 2 else 5)
+        return
 
     if cmd == 'status':
         print_printer_status(printers)
