@@ -11,6 +11,9 @@ but may work with other ChiTu-mainboard printers with WiFi.
 
 Note: This is still a work in progress.
 
+License: MIT
+Copyright (C) 2023 Vladimir Vukicevic
+
 ## Usage
 
 Python 3 is required. There are no other prerequisites.
