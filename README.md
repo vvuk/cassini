@@ -23,11 +23,12 @@ install the `alive-progress` package for nicer progress bars (`pip3 install aliv
 
 ```
 $ ./cassini.py status
-0: Saturn3Ultra (ELEGOO Saturn 3 Ultra) -- 192.168.x.x
-  Status: 4 Layers: 27/1002
+192.168.7.128: Saturn3Ultra (ELEGOO Saturn 3 Ultra)  Status: 1
+          Print Status: 2 Layers: 19/130
+  File Transfer Status: 0
 ```
 
-### Watch live ptogress
+### Watch live print progress
 
 ```
 $ ./cassini.py watch [interval]
@@ -37,18 +38,20 @@ _STL_B_Warriors_1_Sword_Combined_Supported.goo |██████████�
 ### File transfer
 
 ```
-$ ./cassini.py [--target printer_id] put-file [--start-print] MyFile.goo
+$ ./cassini.py [--printer printer_ip] upload MyFile.goo
+15:39:15,190 INFO: Using printer Saturn3Ultra (ELEGOO Saturn 3 Ultra)
+MyFile.goo |████████████████████████████████████████| 100% [5750174/5750174] (3291238.22/s)
 ```
 
 ### Start a print (of an existing file)
 
 ```
-$ ./cassini.py [--target printer_id] start-print Myfile.goo
+$ ./cassini.py [--printer printer_ip] print Myfile.goo
 ```
 
 ## Protocol Description
 
-The protocol is pretty simple. (There is no encryption or anything that I could find.)
+The protocol is pretty simple. There is no encryption or any obfuscation that I could find.
 
 There is a UDP discovery, status, and MQTT connection protocol. When the UDP command to
 connect to a MQTT server is given, the printer connects to a MQTT server, and can be
@@ -200,3 +203,7 @@ is connected to. The file needs to be accessible at the specified URL.
     },
     "Id": "0a69ee780fbd40d7bfb95b312250bf46"
 }```
+
+The printer will set CurrentStatus = 2 (Busy), and FileTransferInfo.Status = 0 while the transfer is in progress,
+and will give Status updates. When finished, CurrentStatus will return to 0, and FileTransferInfo will be either 2 (success)
+or 3 (failure).

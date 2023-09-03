@@ -14,40 +14,59 @@ import asyncio
 import logging
 import random
 
-SATURN_BROADCAST_PORT = 3000
+SATURN_UDP_PORT = 3000
 
-SATURN_STATUS_EXPOSURE = 2 # TODO: double check tese
-SATURN_STATUS_RETRACTING = 3
-SATURN_STATUS_LOWERING = 4
-SATURN_STATUS_COMPLETE = 16 # ??
+# CurrentStatus field inside Status
+SATURN_STATUS_READY = 0
+SATURN_STATUS_BUSY = 1 # Printer might be sitting at the "Completed" screen
+SATURN_STATUS_BUSY_2 = 1 # post-HEAD call on file transfer, along with SATURN_FILE_STATUS = 3 on error, and 2 on completion
 
-STATUS_NAMES = {
-    SATURN_STATUS_EXPOSURE: "Exposure",
-    SATURN_STATUS_RETRACTING: "Retracting",
-    SATURN_STATUS_LOWERING: "Lowering",
-    SATURN_STATUS_COMPLETE: "Complete"
+# Status field inside PrintInfo
+SATURN_PRINT_STATUS_EXPOSURE = 2 # TODO: double check tese
+SATURN_PRINT_STATUS_RETRACTING = 3
+SATURN_PRINT_STATUS_LOWERING = 4
+SATURN_PRINT_STATUS_COMPLETE = 16 # pretty sure this is correct
+
+# Status field inside FileTransferInfo
+SATURN_FILE_STATUS_NONE = 0
+SATURN_FILE_STATUS_DONE = 2
+SATURN_FILE_STATUS_ERROR = 3
+
+SATURN_PRINT_STATUS_NAMES = {
+    SATURN_PRINT_STATUS_EXPOSURE: "Exposure",
+    SATURN_PRINT_STATUS_RETRACTING: "Retracting",
+    SATURN_PRINT_STATUS_LOWERING: "Lowering",
+    SATURN_PRINT_STATUS_COMPLETE: "Complete"
 }
 
 SATURN_CMD_0 = 0 # null data
 SATURN_CMD_1 = 1 # null data
-SATURN_CMD_SET_MYSTERY_TIME_PERIOD = 512 # "TimePeriod": 5000
+SATURN_CMD_DISCONNECT = 64 # Maybe disconnect?
 SATURN_CMD_START_PRINTING = 128 # "Filename": "X", "StartLayer": 0
 SATURN_CMD_UPLOAD_FILE = 256 # "Check": 0, "CleanCache": 1, "Compress": 0, "FileSize": 3541068, "Filename": "_ResinXP2-ValidationMatrix_v2.goo", "MD5": "205abc8fab0762ad2b0ee1f6b63b1750", "URL": "http://${ipaddr}:58883/f60c0718c8144b0db48b7149d4d85390.goo" },
-SATURN_CMD_DISCONNECT = 64 # Maybe disconnect?
+SATURN_CMD_SET_MYSTERY_TIME_PERIOD = 512 # "TimePeriod": 5000
+
+def random_hexstr():
+    return '%032x' % random.getrandbits(128)
 
 class SaturnPrinter:
-    def __init__(self, addr, desc):
+    def __init__(self, addr, desc, timeout=5):
         self.addr = addr
-        self.desc = desc
+        self.timeout = timeout
+        self.file_transfer_future = None
+        if desc is not None:
+            self.set_desc(desc)
+        else:
+            self.desc = None
 
-    # Class method: UDP broadcast search for all printers
+    # Broadcast and find all printers, return array of SaturnPrinter objects
     def find_printers(timeout=1):
         printers = []
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         with sock:
             sock.settimeout(timeout)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, timeout)
-            sock.sendto(b'M99999', ('<broadcast>', SATURN_BROADCAST_PORT))
+            sock.sendto(b'M99999', ('<broadcast>', SATURN_UDP_PORT))
 
             now = time.time()
             while True:
@@ -62,34 +81,213 @@ class SaturnPrinter:
                     pdata = json.loads(data.decode('utf-8'))
                     printers.append(SaturnPrinter(addr, pdata))
         return printers
-    
-    # Tell this printer to connect to the given mqtt server
-    def connect(self, mqtt, http):
+
+    # Find a specific printer at the given address, return a SaturnPrinter object
+    # or None if no response is obtained 
+    def find_printer(addr, timeout=5):
+        printer = SaturnPrinter(addr, None)
+        if printer.refresh(timeout):
+            return printer
+        return None
+
+    # Refresh this SaturnPrinter with latest status 
+    def refresh(self, timeout=5):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        with sock:
+            sock.settimeout(timeout)
+            sock.sendto(b'M99999', (self.addr, SATURN_UDP_PORT))
+            try:
+                data, addr = sock.recvfrom(1024)
+            except socket.timeout:
+                return False
+            else:
+                pdata = json.loads(data.decode('utf-8'))
+                self.set_desc(pdata)
+
+    def set_desc(self, desc):
+        self.desc = desc
+        self.id = desc['Data']['Attributes']['MainboardID'] 
+        self.name = desc['Data']['Attributes']['Name']
+        self.machine_name = desc['Data']['Attributes']['MachineName']
+        self.current_status = desc['Data']['Status']['CurrentStatus']
+        self.busy = self.current_status > 0
+
+    # Tell this printer to connect to the specified mqtt and http
+    # servers, for further control
+    async def connect(self, mqtt, http):
         self.mqtt = mqtt
         self.http = http
 
-        mainboard = self.desc['Data']['Attributes']['MainboardID']
-        mqtt.add_handler("/sdcp/saturn/" + mainboard, self.incoming_data)
-        mqtt.add_handler("/sdcp/response/" + mainboard, self.incoming_data)
-
+        # Tell the printer to connect
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         with sock:
             sock.sendto(b'M66666 ' + str(mqtt.port).encode('utf-8'), self.addr)
 
-    def incoming_data(self, topic, payload):
-        if topic.startswith("/sdcp/status/"):
-            self.incoming_status(payload['Data']['Status'])
-        elif topic.startswith("/sdcp/attributes/"):
-            # don't think I care about attributes
-            pass
-        elif topic.startswith("/sdcp/response/"):
-            self.incoming_response(payload['Data']['RequestID'], payload['Data']['Cmd'], payload['Data']['Data'])
+        # wait for the connection
+        client_id = await asyncio.wait_for(mqtt.client_connection, timeout=self.timeout)
+        if client_id != self.id:
+            logging.error(f"Client ID mismatch: {client_id} != {self.id}")
+            return False
+
+        # wait for the client to subscribe to the request topic
+        topic = await asyncio.wait_for(self.mqtt.client_subscribed, timeout=self.timeout)
+        logging.debug(f"Client subscribed to {topic}")
+
+        await self.send_command_and_wait(SATURN_CMD_0)
+        await self.send_command_and_wait(SATURN_CMD_1)
+        await self.send_command_and_wait(SATURN_CMD_SET_MYSTERY_TIME_PERIOD, { 'TimePeriod': 5000 })
+
+        return True
+
+    async def disconnect(self):
+        await self.send_command_and_wait(SATURN_CMD_DISCONNECT)
+
+    async def upload_file(self, filename, start_printing=False):
+        try:
+            await self.upload_file_inner(filename, start_printing)
+        except Exception as ex:
+            logging.error(f"Exception during upload: {ex}")
+            self.file_transfer_future.set_result((-1, -1, filename))
+            self.file_transfer_future = asyncio.get_running_loop().create_future()
+
+    async def upload_file_inner(self, filename, start_printing=False):
+        # schedule a future that can be used for status, in case this is kicked off as a task
+        self.file_transfer_future = asyncio.get_running_loop().create_future()
+
+        # get base filename and extension
+        basename = filename.split('\\')[-1].split('/')[-1]
+        ext = basename.split('.')[-1].lower()
+        if ext != 'ctb' and ext != 'goo':
+            logging.warning(f"Unknown file extension: {ext}")
+
+        httpname = random_hexstr() + '.' + ext 
+        fileinfo = self.http.register_file_route('/' + httpname, filename)
+
+        cmd_data = {
+            "Check": 0,
+            "CleanCache": 1,
+            "Compress": 0,
+            "FileSize": fileinfo['size'],
+            "Filename": basename,
+            "MD5": fileinfo['md5'],
+            "URL": f"http://${{ipaddr}}:{self.http.port}/{httpname}"
+        }
+
+        await self.send_command_and_wait(SATURN_CMD_UPLOAD_FILE, cmd_data)
+
+        # now process status updates from the printer
+        while True:
+            reply = await asyncio.wait_for(self.mqtt.next_published_message(), timeout=self.timeout*2)
+            data = json.loads(reply['payload'])
+            if reply['topic'] == "/sdcp/response/" + self.id:
+                logging.warning(f"Got unexpected RESPONSE (no outstanding request), topic: {reply['topic']} data: {data}")
+            elif reply['topic'] == "/sdcp/status/" + self.id:
+                self.incoming_status(data['Data']['Status'])
+
+                status = data['Data']['Status']
+                file_info = status['FileTransferInfo']
+                current_offset = file_info['DownloadOffset']
+                total_size = file_info['FileTotalSize']
+                file_name = file_info['Filename']
+
+                # We assume that the printer immediately goes into BUSY status after it processes
+                # the upload command
+                if status['CurrentStatus'] == SATURN_STATUS_READY:
+                    if file_info['Status'] == SATURN_FILE_STATUS_DONE:
+                        self.file_transfer_future.set_result((total_size, total_size, file_name))
+                    elif file_info['Status'] == SATURN_FILE_STATUS_ERROR:
+                        logging.error("Transfer error!")
+                        self.file_transfer_future.set_result((-1, total_size, file_name))
+                    else:
+                        logging.error(f"Unknown file transfer status code: {file_info['Status']}")
+                        self.file_transfer_future.set_result((-1, total_size, file_name))
+                    break
+
+                self.file_transfer_future.set_result((current_offset, total_size, file_name))
+                self.file_transfer_future = asyncio.get_running_loop().create_future()
+            elif reply['topic'] == "/sdcp/attributes/" + self.id:
+                # ignore these
+                pass
+            else:
+                logging.warning(f"Got unknown topic message: {reply['topic']}")
+
+        self.file_transfer_future = None
+
+    async def send_command_and_wait(self, cmdid, data=None, abort_on_bad_ack=True):
+        # Send the 0 and 1 messages
+        req = self.send_command(cmdid, data)
+        logging.debug(f"Sent command {cmdid} as request {req}")
+        while True:
+            reply = await asyncio.wait_for(self.mqtt.next_published_message(), timeout=self.timeout)
+            data = json.loads(reply['payload'])
+            if reply['topic'] == "/sdcp/response/" + self.id:
+                if data['Data']['RequestID'] == req:
+                    logging.debug(f"Got response to {req}")
+                    result = data['Data']['Data']
+                    if abort_on_bad_ack and result['Ack'] != 0:
+                        logging.error(f"Got bad ack in response: {result}")
+                        sys.exit(1)
+                    return result
+            elif reply['topic'] == "/sdcp/status/" + self.id:
+                self.incoming_status(data['Data']['Status'])
+            elif reply['topic'] == "/sdcp/attributes/" + self.id:
+                # ignore these
+                pass
+            else:
+                logging.warning(f"Got unknown topic message: {reply['topic']}")
+
+    async def print_file(self, filename):
+        cmd_data = {
+            "Filename": filename,
+            "StartLayer": 0
+        }
+
+        await self.send_command_and_wait(SATURN_CMD_START_PRINTING, cmd_data)
+
+        # process status updates from the printer, enough to know whether printing
+        # started or failed to start
+        status_count = 0
+        while True:
+            reply = await asyncio.wait_for(self.mqtt.next_published_message(), timeout=self.timeout*2)
+            data = json.loads(reply['payload'])
+            if reply['topic'] == "/sdcp/response/" + self.id:
+                logging.warning(f"Got unexpected RESPONSE (no outstanding request), topic: {reply['topic']} data: {data}")
+            elif reply['topic'] == "/sdcp/status/" + self.id:
+                self.incoming_status(data['Data']['Status'])
+                status_count += 1
+
+                status = data['Data']['Status']
+                print_info = status['PrintInfo']
+
+                current_status = status['CurrentStatus']
+                print_status = print_info['Status']
+
+                if current_status == SATURN_STATUS_BUSY and print_status > 0:
+                    return True
+
+                logging.debug(status)
+                logging.debug(print_info)
+
+                if status_count >= 5:
+                    logging.warning("Too many status replies without success or failure")
+                    return False
+
+            elif reply['topic'] == "/sdcp/attributes/" + self.id:
+                # ignore these
+                pass
+            else:
+                logging.warning(f"Got unknown topic message: {reply['topic']}")
+
+    async def process_responses(self):
+        while True:
+            reply = await asyncio.wait_for(self.mqtt.next_published_message(), timeout=self.timeout)
+            data = json.loads(reply['payload'])
 
     def incoming_status(self, status):
-        logging.info(f"STATUS: {status}")
+        logging.debug(f"STATUS: {status}")
 
     def incoming_response(self, id, cmd, data):
-        logging.info(f"RESPONSE: {id} -- {cmd}: {data}")
+        logging.debug(f"RESPONSE: {id} -- {cmd}: {data}")
 
     def describe(self):
         attrs = self.desc['Data']['Attributes']
@@ -106,19 +304,18 @@ class SaturnPrinter:
 
     def send_command(self, cmdid, data=None):
         # generate 16-byte random identifier as a hex string
-        hexstr = '%032x' % random.getrandbits(128)
+        hexstr = random_hexstr()
         timestamp = int(time.time() * 1000)
-        mainboard = self.desc['Data']['Attributes']['MainboardID']
         cmd_data = {
             "Data": {
                 "Cmd": cmdid,
                 "Data": data,
                 "From": 0,
-                "MainboardID": mainboard,
+                "MainboardID": self.id,
                 "RequestID": hexstr,
                 "TimeStamp": timestamp
             },
             "Id": self.desc['Id']
         }
-        print("SENDING REQUEST: " + json.dumps(cmd_data))
-        self.mqtt.outgoing_messages.put_nowait({'topic': '/sdcp/request/' + mainboard, 'payload': json.dumps(cmd_data)})
+        self.mqtt.publish('/sdcp/request/' + self.id, json.dumps(cmd_data))
+        return hexstr
