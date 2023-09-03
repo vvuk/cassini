@@ -140,7 +140,7 @@ The printer subscribes to a request topic specific to its mainboard ID `/sdcp/re
 Commands discovered:
 
 | ID  | Description | Data |
-===========================
+|-----|-------------|------|
 | 0   | Unknown. Sent by CHITUBOX first. | None |
 | 1   | Unknown. Sent by CHITUBOX after 0. | None |
 | 64  | Maybe a disconnect? | None |
