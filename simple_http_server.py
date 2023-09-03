@@ -1,3 +1,10 @@
+#
+# Cassini
+#
+# Copyright (C) 2023 Vladimir Vukicevic
+# License: MIT
+#
+
 import asyncio
 import os
 import hashlib
