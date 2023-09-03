@@ -181,6 +181,3 @@ class SimpleMQTTServer:
         self.next_pack_id_value += 1
         return pack_id
 
-if __name__ == "__main__":
-    server = SimpleMQTTServer()
-    asyncio.run(server.run())
