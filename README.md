@@ -9,6 +9,8 @@ Voxeldance Tango support this, but there was no way to print from Lychee or [UVT
 transferring files to them, and starting a print. It has only been tested with a Saturn 3 Ultra,
 but may work with other ChiTu-mainboard printers with WiFi.
 
+Note: This is still a work in progress.
+
 ## Usage
 
 Python 3 is required. There are no other prerequisites.
