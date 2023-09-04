@@ -56,7 +56,7 @@ def do_status(printers):
         print_info = status['PrintInfo']
         file_info = status['FileTransferInfo']
         print(f"{p.addr[0]}: {attrs['Name']} ({attrs['MachineName']})  Status: {status['CurrentStatus']}")
-        print(f"          Print Status: {print_info['Status']} Layers: {print_info['CurrentLayer']}/{print_info['TotalLayer']} File: {print_info['FileName']}")
+        print(f"          Print Status: {print_info['Status']} Layers: {print_info['CurrentLayer']}/{print_info['TotalLayer']} File: {print_info['Filename']}")
         print(f"  File Transfer Status: {file_info['Status']}")
 
 def do_watch(printer, interval=5):
