@@ -60,13 +60,15 @@ class SaturnPrinter:
             self.desc = None
 
     # Broadcast and find all printers, return array of SaturnPrinter objects
-    def find_printers(timeout=1):
+    def find_printers(timeout=1, broadcast=None):
+        if broadcast is None:
+            broadcast = '<broadcast>'
         printers = []
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         with sock:
             sock.settimeout(timeout)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, timeout)
-            sock.sendto(b'M99999', ('<broadcast>', SATURN_UDP_PORT))
+            sock.sendto(b'M99999', (broadcast, SATURN_UDP_PORT))
 
             now = time.time()
             while True:
@@ -85,10 +87,10 @@ class SaturnPrinter:
     # Find a specific printer at the given address, return a SaturnPrinter object
     # or None if no response is obtained 
     def find_printer(addr, timeout=5):
-        printer = SaturnPrinter(addr, None)
-        if printer.refresh(timeout):
-            return printer
-        return None
+        printers = SaturnPrinter.find_printers(broadcast=addr)
+        if len(printers) == 0 or printers[0].addr[0] != addr:
+            return None
+        return printers[0]
 
     # Refresh this SaturnPrinter with latest status 
     def refresh(self, timeout=5):

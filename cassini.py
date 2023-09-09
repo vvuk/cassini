@@ -59,11 +59,11 @@ def do_status(printers):
         print(f"          Print Status: {print_info['Status']} Layers: {print_info['CurrentLayer']}/{print_info['TotalLayer']} File: {print_info['Filename']}")
         print(f"  File Transfer Status: {file_info['Status']}")
 
-def do_watch(printer, interval=5):
+def do_watch(printer, interval=5, broadcast=None):
     status = printer.status()
     with alive_bar(total=status['totalLayers'], manual=True, elapsed=False, title=status['filename']) as bar:
         while True:
-            printers = SaturnPrinter.find_printers()
+            printers = SaturnPrinter.find_printers(broadcast=broadcast)
             if len(printers) > 0:
                 status = printers[0].status()
                 pct = status['currentLayer'] / status['totalLayers']
@@ -125,6 +125,7 @@ async def do_upload(printer, filename, start_printing=False):
 def main():
     parser = argparse.ArgumentParser(prog='cassini', description='ELEGOO Saturn printer control utility')
     parser.add_argument('-p', '--printer', help='ID of printer to target')
+    parser.add_argument('--broadcast', help='Explicit broadcast IP address')
     parser.add_argument('--debug', help='Enable debug logging', action='store_true')
 
     subparsers = parser.add_subparsers(title="commands", dest="command", required=True)
@@ -148,14 +149,15 @@ def main():
 
     printers = []
     printer = None
+    broadcast = args.broadcast
     if args.printer:
         printer = SaturnPrinter.find_printer(args.printer)
-        printers = [printer]
         if printer is None:
             logging.error(f"No response from printer {args.printer}")
             sys.exit(1)
+        printers = [printer]
     else:
-        printers = SaturnPrinter.find_printers()
+        printers = SaturnPrinter.find_printers(broadcast=broadcast)
         if len(printers) == 0:
             logging.error("No printers found on network")
             sys.exit(1)
@@ -166,7 +168,7 @@ def main():
         sys.exit(0)
 
     if args.command == "watch":
-        do_watch(printer, interval=args.interval)
+        do_watch(printer, interval=args.interval, broadcast=broadcast)
         sys.exit(0)
 
     logging.info(f'Printer: {printer.describe()} ({printer.addr[0]})')
