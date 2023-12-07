@@ -14,7 +14,7 @@ import logging
 import argparse
 from simple_mqtt_server import SimpleMQTTServer
 from simple_http_server import SimpleHTTPServer
-from saturn_printer import SaturnPrinter
+from saturn_printer import SaturnPrinter, PrintInfoStatus, CurrentStatus, FileStatus
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,9 +55,14 @@ def do_status(printers):
         status = p.desc['Data']['Status']
         print_info = status['PrintInfo']
         file_info = status['FileTransferInfo']
-        print(f"{p.addr[0]}: {attrs['Name']} ({attrs['MachineName']})  Status: {status['CurrentStatus']}")
-        print(f"          Print Status: {print_info['Status']} Layers: {print_info['CurrentLayer']}/{print_info['TotalLayer']} File: {print_info['Filename']}")
-        print(f"  File Transfer Status: {file_info['Status']}")
+        print(f"{p.addr[0]}:")
+        print(f"    {attrs['Name']} ({attrs['MachineName']})")
+        # print(f"    Status: {status['CurrentStatus']}")
+        print(f"    Machine Status: {CurrentStatus(status['CurrentStatus']).name}")
+        print(f"    Print Status: {PrintInfoStatus(print_info['Status']).name}")
+        print(f"    Layers: {print_info['CurrentLayer']}/{print_info['TotalLayer']}")
+        print(f"    File: {print_info['Filename']}")
+        print(f"    File Transfer Status: {FileStatus(file_info['Status']).name}")
 
 def do_watch(printer, interval=5, broadcast=None):
     status = printer.status()

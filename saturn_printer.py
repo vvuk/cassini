@@ -13,38 +13,37 @@ import json
 import asyncio
 import logging
 import random
+from enum import Enum
 
 SATURN_UDP_PORT = 3000
 
 # CurrentStatus field inside Status
-SATURN_STATUS_READY = 0
-SATURN_STATUS_BUSY = 1 # Printer might be sitting at the "Completed" screen
-SATURN_STATUS_BUSY_2 = 1 # post-HEAD call on file transfer, along with SATURN_FILE_STATUS = 3 on error, and 2 on completion
+class CurrentStatus(Enum):
+    READY = 0
+    BUSY = 1 # Printer might be sitting at the "Completed" screen
+    # SATURN_STATUS_BUSY_2 = 1 # post-HEAD call on file transfer, along with SATURN_FILE_STATUS = 3 on error, and 2 on completion
 
 # Status field inside PrintInfo
-SATURN_PRINT_STATUS_EXPOSURE = 2 # TODO: double check tese
-SATURN_PRINT_STATUS_RETRACTING = 3
-SATURN_PRINT_STATUS_LOWERING = 4
-SATURN_PRINT_STATUS_COMPLETE = 16 # pretty sure this is correct
+class PrintInfoStatus(Enum):
+    # TODO: double check these
+    EXPOSURE = 2 
+    RETRACTING = 3
+    LOWERING = 4
+    COMPLETE = 16 # pretty sure this is correct
 
 # Status field inside FileTransferInfo
-SATURN_FILE_STATUS_NONE = 0
-SATURN_FILE_STATUS_DONE = 2
-SATURN_FILE_STATUS_ERROR = 3
+class FileStatus(Enum):
+    NONE = 0
+    DONE = 2
+    ERROR = 3
 
-SATURN_PRINT_STATUS_NAMES = {
-    SATURN_PRINT_STATUS_EXPOSURE: "Exposure",
-    SATURN_PRINT_STATUS_RETRACTING: "Retracting",
-    SATURN_PRINT_STATUS_LOWERING: "Lowering",
-    SATURN_PRINT_STATUS_COMPLETE: "Complete"
-}
-
-SATURN_CMD_0 = 0 # null data
-SATURN_CMD_1 = 1 # null data
-SATURN_CMD_DISCONNECT = 64 # Maybe disconnect?
-SATURN_CMD_START_PRINTING = 128 # "Filename": "X", "StartLayer": 0
-SATURN_CMD_UPLOAD_FILE = 256 # "Check": 0, "CleanCache": 1, "Compress": 0, "FileSize": 3541068, "Filename": "_ResinXP2-ValidationMatrix_v2.goo", "MD5": "205abc8fab0762ad2b0ee1f6b63b1750", "URL": "http://${ipaddr}:58883/f60c0718c8144b0db48b7149d4d85390.goo" },
-SATURN_CMD_SET_MYSTERY_TIME_PERIOD = 512 # "TimePeriod": 5000
+class Command(Enum):
+    CMD_0 = 0 # null data
+    CMD_1 = 1 # null data
+    DISCONNECT = 64 # Maybe disconnect?
+    START_PRINTING = 128 # "Filename": "X", "StartLayer": 0
+    UPLOAD_FILE = 256 # "Check": 0, "CleanCache": 1, "Compress": 0, "FileSize": 3541068, "Filename": "_ResinXP2-ValidationMatrix_v2.goo", "MD5": "205abc8fab0762ad2b0ee1f6b63b1750", "URL": "http://${ipaddr}:58883/f60c0718c8144b0db48b7149d4d85390.goo" },
+    SET_MYSTERY_TIME_PERIOD = 512 # "TimePeriod": 5000
 
 def random_hexstr():
     return '%032x' % random.getrandbits(128)
@@ -135,14 +134,14 @@ class SaturnPrinter:
         topic = await asyncio.wait_for(self.mqtt.client_subscribed, timeout=self.timeout)
         logging.debug(f"Client subscribed to {topic}")
 
-        await self.send_command_and_wait(SATURN_CMD_0)
-        await self.send_command_and_wait(SATURN_CMD_1)
-        await self.send_command_and_wait(SATURN_CMD_SET_MYSTERY_TIME_PERIOD, { 'TimePeriod': 5000 })
+        await self.send_command_and_wait(Command.CMD_0)
+        await self.send_command_and_wait(Command.CMD_1)
+        await self.send_command_and_wait(Command.SET_MYSTERY_TIME_PERIOD, { 'TimePeriod': 5000 })
 
         return True
 
     async def disconnect(self):
-        await self.send_command_and_wait(SATURN_CMD_DISCONNECT)
+        await self.send_command_and_wait(Command.DISCONNECT)
 
     async def upload_file(self, filename, start_printing=False):
         try:
@@ -175,7 +174,7 @@ class SaturnPrinter:
             "URL": f"http://${{ipaddr}}:{self.http.port}/{httpname}"
         }
 
-        await self.send_command_and_wait(SATURN_CMD_UPLOAD_FILE, cmd_data)
+        await self.send_command_and_wait(Command.UPLOAD_FILE, cmd_data)
 
         # now process status updates from the printer
         while True:
@@ -194,10 +193,10 @@ class SaturnPrinter:
 
                 # We assume that the printer immediately goes into BUSY status after it processes
                 # the upload command
-                if status['CurrentStatus'] == SATURN_STATUS_READY:
-                    if file_info['Status'] == SATURN_FILE_STATUS_DONE:
+                if status['CurrentStatus'] == CurrentStatus.READY:
+                    if file_info['Status'] == FileStatus.DONE:
                         self.file_transfer_future.set_result((total_size, total_size, file_name))
-                    elif file_info['Status'] == SATURN_FILE_STATUS_ERROR:
+                    elif file_info['Status'] == FileStatus.ERROR:
                         logging.error("Transfer error!")
                         self.file_transfer_future.set_result((-1, total_size, file_name))
                     else:
@@ -244,7 +243,7 @@ class SaturnPrinter:
             "StartLayer": 0
         }
 
-        await self.send_command_and_wait(SATURN_CMD_START_PRINTING, cmd_data)
+        await self.send_command_and_wait(Command.START_PRINTING, cmd_data)
 
         # process status updates from the printer, enough to know whether printing
         # started or failed to start
@@ -264,7 +263,7 @@ class SaturnPrinter:
                 current_status = status['CurrentStatus']
                 print_status = print_info['Status']
 
-                if current_status == SATURN_STATUS_BUSY and print_status > 0:
+                if current_status == CurrentStatus.BUSY and print_status > 0:
                     return True
 
                 logging.debug(status)
