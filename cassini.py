@@ -57,7 +57,6 @@ def do_status(printers):
         file_info = status['FileTransferInfo']
         print(f"{p.addr[0]}:")
         print(f"    {attrs['Name']} ({attrs['MachineName']})")
-        # print(f"    Status: {status['CurrentStatus']}")
         print(f"    Machine Status: {CurrentStatus(status['CurrentStatus']).name}")
         print(f"    Print Status: {PrintInfoStatus(print_info['Status']).name}")
         print(f"    Layers: {print_info['CurrentLayer']}/{print_info['TotalLayer']}")
