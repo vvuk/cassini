@@ -26,6 +26,8 @@ class CurrentStatus(Enum):
 # Status field inside PrintInfo
 class PrintInfoStatus(Enum):
     # TODO: double check these
+    IDLE = 0
+    # UNKNOWN = 1 # I suspect there is a 1. Haven't seen it yet. Not sure what it represents.
     EXPOSURE = 2 
     RETRACTING = 3
     LOWERING = 4
@@ -298,6 +300,7 @@ class SaturnPrinter:
         printinfo = self.desc['Data']['Status']['PrintInfo']
         return {
             'status': self.desc['Data']['Status']['CurrentStatus'],
+            'printStatus': printinfo['Status'],
             'filename': printinfo['Filename'],
             'currentLayer': printinfo['CurrentLayer'],
             'totalLayers': printinfo['TotalLayer']

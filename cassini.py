@@ -15,6 +15,7 @@ import argparse
 from simple_mqtt_server import SimpleMQTTServer
 from simple_http_server import SimpleHTTPServer
 from saturn_printer import SaturnPrinter, PrintInfoStatus, CurrentStatus, FileStatus
+from ascii_art import PrinterArt
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,11 +67,59 @@ def do_status(printers):
 def do_watch(printer, interval=5, broadcast=None):
     status = printer.status()
     with alive_bar(total=status['totalLayers'], manual=True, elapsed=False, title=status['filename']) as bar:
+        ascii_art_category = PrinterArt.unkown_ascii_art
+        ascii_frame = 0
+        frame_increments = True
+        frame_range = None
         while True:
             printers = SaturnPrinter.find_printers(broadcast=broadcast)
             if len(printers) > 0:
                 status = printers[0].status()
-                pct = status['currentLayer'] / status['totalLayers']
+                os.system('cls' if os.name == 'nt' else 'clear') # Clear terminal to print next ascii art frame + progress bar
+
+                match PrintInfoStatus(status['printStatus']):
+                    case PrintInfoStatus.LOWERING:
+                        ascii_art_category = PrinterArt.print_cycle_ascii_art
+                        frame_increments = True
+                        frame_range = [0, 4]
+                    case PrintInfoStatus.RETRACTING:
+                        ascii_art_category = PrinterArt.print_cycle_ascii_art
+                        frame_increments = False # Retracting plays in reverse order
+                        frame_range = [0, 4]
+                    case  PrintInfoStatus.EXPOSURE:
+                        ascii_art_category = PrinterArt.print_cycle_ascii_art
+                        frame_increments = True
+                        frame_range = [5, 6]
+                    case PrintInfoStatus.COMPLETE:
+                        ascii_art_category = PrinterArt.complete_ascii_art 
+                        frame_range = None # Only has 1 frame
+                    case PrintInfoStatus.IDLE:
+                        ascii_art_category = PrinterArt.idle_ascii_art  
+                        frame_range = None # Only has 1 frame
+                    case _:
+                        ascii_art_category = PrinterArt.unkown_ascii_art  
+                        frame_range = None # Only has 1 frame
+
+                if frame_range:
+                    if frame_increments and frame_range[1] > ascii_frame:
+                        ascii_frame += 1
+                    elif frame_increments == False and frame_range[0] < ascii_frame:
+                        ascii_frame -= 1
+                    if not (frame_range[0] <= ascii_frame <= frame_range[1]):
+                        if frame_increments:
+                            ascii_frame = frame_range[0]
+                        else:
+                            ascii_frame = frame_range[1]
+                else:
+                    ascii_frame = 0
+
+                print(ascii_art_category[ascii_frame])
+                print(f"Print Status: {PrintInfoStatus(status['printStatus']).name}")
+
+                if status['totalLayers'] == 0: # Usually encountered when printer is IDLE. No file
+                    break
+                else:
+                    pct = status['currentLayer'] / status['totalLayers']
                 bar(pct)
                 if pct >= 1.0:
                     break
