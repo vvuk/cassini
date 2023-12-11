@@ -312,7 +312,7 @@ class SaturnPrinter:
         timestamp = int(time.time() * 1000)
         cmd_data = {
             "Data": {
-                "Cmd": cmdid,
+                "Cmd": cmdid.value,
                 "Data": data,
                 "From": 0,
                 "MainboardID": self.id,
