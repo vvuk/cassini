@@ -23,15 +23,19 @@ install the `alive-progress` package for nicer progress bars (`pip3 install aliv
 
 ```
 $ ./cassini.py status
-192.168.7.128: Saturn3Ultra (ELEGOO Saturn 3 Ultra)  Status: 1
-          Print Status: 2 Layers: 19/130
-  File Transfer Status: 0
+192.168.1.15:
+    Saturn3Ultra (ELEGOO Saturn 3 Ultra)
+    Machine Status: READY
+    Print Status: COMPLETE
+    Layers: 500/500
+    File: _Magnet_holder.ctb
+    File Transfer Status: NONE
 ```
 
 ### Watch live print progress
 
 ```
-$ ./cassini.py watch [interval]
+$ ./cassini.py watch [interval] --no-animation
 _STL_B_Warriors_1_Sword_Combined_Supported.goo |███████████████████████████████████▉ ︎   | 90% 
 ```
 
@@ -126,11 +130,83 @@ The id is the `MainboardID` from the original discovery.  Each payload
 
 The printer publishes messages to three topics:
 
-`/sdcp/status/ABCD1234ABCD1234`: Status messages, same format as the `"Status"` content of the broadcast message:  `{"Id":"f25273b12b094c5a8b9513a30ca60049","Data":{"Status":{"CurrentStatus":0,"PreviousStatus":0,"PrintInfo":{"Status":0,"CurrentLayer":0,"TotalLayer":0,"CurrentTicks":0,"TotalTicks":0,"ErrorNumber":0,"Filename":""},"FileTransferInfo":{"Status":0,"DownloadOffset":0,"CheckOffset":0,"FileTotalSize":0,"Filename":""}},"MainboardID":"ABCD1234ABCD1234","TimeStamp":8629636}}`
+`/sdcp/status/ABCD1234ABCD1234`: Status messages, same format as the `"Status"` content of the broadcast message:  
+```
+{
+    "Id": "f25273b12b094c5a8b9513a30ca60049",
+    "Data": {
+        "Status": {
+            "CurrentStatus": 0,
+            "PreviousStatus": 0,
+            "PrintInfo": {
+                "Status": 0,
+                "CurrentLayer": 0,
+                "TotalLayer": 0,
+                "CurrentTicks": 0,
+                "TotalTicks": 0,
+                "ErrorNumber": 0,
+                "Filename": ""
+            },
+            "FileTransferInfo": {
+                "Status": 0,
+                "DownloadOffset": 0,
+                "CheckOffset": 0,
+                "FileTotalSize": 0,
+                "Filename": ""
+            }
+        },
+        "MainboardID": "ABCD1234ABCD1234",
+        "TimeStamp": 8629636
+    }
+}
+```
 
-`/sdcp/attributes/ABCD1234ABCD1234`: Unclear what this is used for, as it seems to repeat the Status information: `{"Id":"f25273b12b094c5a8b9513a30ca60049","Data":{"Attributes":{"CurrentStatus":0,"PreviousStatus":0,"PrintInfo":{"Status":0,"CurrentLayer":0,"TotalLayer":0,"CurrentTicks":0,"TotalTicks":0,"ErrorNumber":0,"Filename":""},"FileTransferInfo":{"Status":0,"DownloadOffset":0,"CheckOffset":0,"FileTotalSize":0,"Filename":""}},"MainboardID":"ABCD1234ABCD1234","TimeStamp":8629737}}`
+`/sdcp/attributes/ABCD1234ABCD1234`: Unclear what this is used for, as it seems to repeat the Status information: 
+```
+{
+    "Id": "f25273b12b094c5a8b9513a30ca60049",
+    "Data": {
+        "Attributes": {
+            "CurrentStatus": 0,
+            "PreviousStatus": 0,
+            "PrintInfo": {
+                "Status": 0,
+                "CurrentLayer": 0,
+                "TotalLayer": 0,
+                "CurrentTicks": 0,
+                "TotalTicks": 0,
+                "ErrorNumber": 0,
+                "Filename": ""
+            },
+            "FileTransferInfo": {
+                "Status": 0,
+                "DownloadOffset": 0,
+                "CheckOffset": 0,
+                "FileTotalSize": 0,
+                "Filename": ""
+            }
+        },
+        "MainboardID": "ABCD1234ABCD1234",
+        "TimeStamp": 8629737
+    }
+}
+```
 
-`/sdcp/response/ABCD1234ABCD1234`: Responses to `/sdcp/request/XXX` messages. The `Cmd` inside Data (if present) and `RequestID` values will match what was sent in the request.  Example: `{"Id":"f25273b12b094c5a8b9513a30ca60049","Data":{"Cmd":1,"Data":{"Ack":0},"RequestID":"130fdded918e4276a47e504f554bed54","MainboardID":"ABCD1234ABCD1234","TimeStamp":8567213}}`
+`/sdcp/response/ABCD1234ABCD1234`: Responses to `/sdcp/request/XXX` messages. The `Cmd` inside Data (if present) and `RequestID` values will match what was sent in the request.  Example: 
+```
+{
+    "Id": "f25273b12b094c5a8b9513a30ca60049",
+    "Data": {
+        "Cmd": 1,
+        "Data": {
+            "Ack": 0
+        },
+        "RequestID": "130fdded918e4276a47e504f554bed54",
+        "MainboardID": "ABCD1234ABCD1234",
+        "TimeStamp": 8567213
+    }
+}
+```
 
 The printer subscribes to a request topic specific to its mainboard ID `/sdcp/request/ABCD1234ABCD1234`, with payloads looking like:
 
@@ -202,8 +278,8 @@ is connected to. The file needs to be accessible at the specified URL.
         "TimeStamp": 1693671336846
     },
     "Id": "0a69ee780fbd40d7bfb95b312250bf46"
-}```
+}
+```
 
 The printer will set CurrentStatus = 2 (Busy), and FileTransferInfo.Status = 0 while the transfer is in progress,
-and will give Status updates. When finished, CurrentStatus will return to 0, and FileTransferInfo will be either 2 (success)
-or 3 (failure).
+and will give Status updates. When finished, CurrentStatus will return to 0, and FileTransferInfo will be either 2 (success) or 3 (failure).
