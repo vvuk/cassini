@@ -66,6 +66,7 @@ def do_status(printers):
 
 def do_watch(printer, interval=5, broadcast=None):
     status = printer.status()
+    print_info_status = PrintInfoStatus(status['printStatus'])
     with alive_bar(total=status['totalLayers'], manual=True, elapsed=False, title=status['filename']) as bar:
         ascii_art_category = PrinterArt.unkown_ascii_art
         ascii_frame = 0
@@ -77,7 +78,7 @@ def do_watch(printer, interval=5, broadcast=None):
                 status = printers[0].status()
                 os.system('cls' if os.name == 'nt' else 'clear') # Clear terminal to print next ascii art frame + progress bar
 
-                match PrintInfoStatus(status['printStatus']):
+                match print_info_status:
                     case PrintInfoStatus.LOWERING:
                         ascii_art_category = PrinterArt.print_cycle_ascii_art
                         frame_increments = True
@@ -116,13 +117,13 @@ def do_watch(printer, interval=5, broadcast=None):
                 print(ascii_art_category[ascii_frame])
                 print(f"Print Status: {PrintInfoStatus(status['printStatus']).name}")
 
-                if status['totalLayers'] == 0: # Usually encountered when printer is IDLE. No file
+                if status['totalLayers'] == 0: # Usually encountered when printer is IDLE. No file. No layers.
                     break
                 else:
                     pct = status['currentLayer'] / status['totalLayers']
                 bar(pct)
-                if pct >= 1.0:
-                    break
+                if print_info_status == PrintInfoStatus.COMPLETE: 
+                    break 
             time.sleep(interval)
 
 async def create_servers():

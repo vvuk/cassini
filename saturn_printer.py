@@ -27,10 +27,11 @@ class CurrentStatus(Enum):
 class PrintInfoStatus(Enum):
     # TODO: double check these
     IDLE = 0
-    # UNKNOWN = 1 # I suspect there is a 1. Haven't seen it yet. Not sure what it represents.
+    INITIAL_DESCENT = 1 # Unsure what exactly this status # represents. Name may be misleading.
     EXPOSURE = 2 
     RETRACTING = 3
     LOWERING = 4
+    RETURN_HOME = 12    # Unsure what exactly this status # represents. Name may be misleading.
     COMPLETE = 16 # pretty sure this is correct
 
 # Status field inside FileTransferInfo
