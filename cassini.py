@@ -15,6 +15,7 @@ import argparse
 from simple_mqtt_server import SimpleMQTTServer
 from simple_http_server import SimpleHTTPServer
 from saturn_printer import SaturnPrinter, PrintInfoStatus, CurrentStatus, FileStatus
+from ascii_art import PrinterArt
 
 logging.basicConfig(
     level=logging.INFO,
@@ -63,17 +64,67 @@ def do_status(printers):
         print(f"    File: {print_info['Filename']}")
         print(f"    File Transfer Status: {FileStatus(file_info['Status']).name}")
 
-def do_watch(printer, interval=5, broadcast=None):
+def do_watch(printer, interval=5, broadcast=None, no_animation=False):
     status = printer.status()
+    print_info_status = PrintInfoStatus(status['printStatus'])
     with alive_bar(total=status['totalLayers'], manual=True, elapsed=False, title=status['filename']) as bar:
+        ascii_art_category = PrinterArt.unkown_ascii_art
+        ascii_frame = 0
+        frame_increments = True
+        frame_range = None
         while True:
             printers = SaturnPrinter.find_printers(broadcast=broadcast)
             if len(printers) > 0:
                 status = printers[0].status()
-                pct = status['currentLayer'] / status['totalLayers']
-                bar(pct)
-                if pct >= 1.0:
+                if not no_animation:
+                    os.system('cls' if os.name == 'nt' else 'clear') # Clear terminal to print next ascii art frame + progress bar
+
+                    match print_info_status:
+                        case PrintInfoStatus.LOWERING:
+                            ascii_art_category = PrinterArt.print_cycle_ascii_art
+                            frame_increments = True
+                            frame_range = [0, 4]
+                        case PrintInfoStatus.RETRACTING:
+                            ascii_art_category = PrinterArt.print_cycle_ascii_art
+                            frame_increments = False # Retracting plays in reverse order
+                            frame_range = [0, 4]
+                        case  PrintInfoStatus.EXPOSURE:
+                            ascii_art_category = PrinterArt.print_cycle_ascii_art
+                            frame_increments = True
+                            frame_range = [5, 6]
+                        case PrintInfoStatus.COMPLETE:
+                            ascii_art_category = PrinterArt.complete_ascii_art 
+                            frame_range = None # Only has 1 frame
+                        case PrintInfoStatus.IDLE:
+                            ascii_art_category = PrinterArt.idle_ascii_art  
+                            frame_range = None # Only has 1 frame
+                        case _:
+                            ascii_art_category = PrinterArt.unkown_ascii_art  
+                            frame_range = None # Only has 1 frame
+
+                    if frame_range:
+                        if frame_increments and frame_range[1] > ascii_frame:
+                            ascii_frame += 1
+                        elif frame_increments == False and frame_range[0] < ascii_frame:
+                            ascii_frame -= 1
+                        if not (frame_range[0] <= ascii_frame <= frame_range[1]):
+                            if frame_increments:
+                                ascii_frame = frame_range[0]
+                            else:
+                                ascii_frame = frame_range[1]
+                    else:
+                        ascii_frame = 0
+
+                    print(ascii_art_category[ascii_frame])
+                print(f"Print Status: {PrintInfoStatus(status['printStatus']).name}")
+
+                if status['totalLayers'] == 0: # Usually encountered when printer is IDLE. No file. No layers.
                     break
+                else:
+                    pct = status['currentLayer'] / status['totalLayers']
+                bar(pct)
+                if print_info_status == PrintInfoStatus.COMPLETE: 
+                    break 
             time.sleep(interval)
 
 async def create_servers():
@@ -138,6 +189,7 @@ def main():
 
     parser_watch = subparsers.add_parser('watch', help='Continuously update the status of the selected printer')
     parser_watch.add_argument('--interval', type=int, help='Status update interval (seconds)', default=5)
+    parser_watch.add_argument('--no-animation', help='Disables ASCII art animations that are shown based on reported status', action='store_true')
 
     parser_upload = subparsers.add_parser('upload', help='Upload a file to the printer') 
     parser_upload.add_argument('--start-printing', help='Start printing after upload is complete', action='store_true')
@@ -172,7 +224,7 @@ def main():
         sys.exit(0)
 
     if args.command == "watch":
-        do_watch(printer, interval=args.interval, broadcast=broadcast)
+        do_watch(printer, interval=args.interval, broadcast=broadcast, no_animation=args.no_animation)
         sys.exit(0)
 
     logging.info(f'Printer: {printer.describe()} ({printer.addr[0]})')

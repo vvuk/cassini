@@ -26,9 +26,12 @@ class CurrentStatus(Enum):
 # Status field inside PrintInfo
 class PrintInfoStatus(Enum):
     # TODO: double check these
+    IDLE = 0
+    INITIAL_DESCENT = 1 # Unsure what exactly this status # represents. Name may be misleading.
     EXPOSURE = 2 
     RETRACTING = 3
     LOWERING = 4
+    RETURN_HOME = 12    # Unsure what exactly this status # represents. Name may be misleading.
     COMPLETE = 16 # pretty sure this is correct
 
 # Status field inside FileTransferInfo
@@ -298,6 +301,7 @@ class SaturnPrinter:
         printinfo = self.desc['Data']['Status']['PrintInfo']
         return {
             'status': self.desc['Data']['Status']['CurrentStatus'],
+            'printStatus': printinfo['Status'],
             'filename': printinfo['Filename'],
             'currentLayer': printinfo['CurrentLayer'],
             'totalLayers': printinfo['TotalLayer']
