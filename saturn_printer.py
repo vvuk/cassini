@@ -14,6 +14,10 @@ import asyncio
 import logging
 import random
 from enum import Enum
+
+import logging
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
 from scapy.all import IP, UDP, send
 
 SATURN_UDP_PORT = 3000
@@ -328,6 +332,7 @@ class SaturnPrinter:
 
         It spoofs UDP packet to the printer to make it connect to particular MQTT server
         """
+        logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
         ip = IP(dst=self.addr[0], src=mqtt_host)
         any_src_port = random.randint(1024, 65535)
         udp = UDP(sport=any_src_port, dport=SATURN_UDP_PORT)
