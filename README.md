@@ -16,8 +16,7 @@ Copyright (C) 2023 Vladimir Vukicevic
 
 ## Usage
 
-Python 3 is required. There are no other requirements, but you should
-install the `alive-progress` package for nicer progress bars (`pip3 install alive-progress`).
+Python 3 is required. Use `pip install -r requirements.txt` to install dependencies.
 
 ### Printer status
 
@@ -27,6 +26,15 @@ $ ./cassini.py status
           Print Status: 2 Layers: 19/130
   File Transfer Status: 0
 ```
+
+### Printer(s) full status
+
+```
+$ ./cassini.py status-full
+```
+
+Will print out the full json status of all printers found.
+
 
 ### Watch live print progress
 
@@ -48,6 +56,16 @@ MyFile.goo |██████████████████████�
 ```
 $ ./cassini.py [--printer printer_ip] print Myfile.goo
 ```
+
+### Connect printer(s) to particular MQTT server
+
+```
+$ [sudo] python cassini.py [--printer printer_ip] connect-mqtt mqtt.local:1883
+```
+
+Probably you need to use `sudo` (at least on MacOS, or you'll get `Permission denied: could not open /dev/bpf0. Make sure to be running Scapy as root`).
+
+If `--printer` is not specified, all printers found will be connected to the same MQTT server.
 
 ## Protocol Description
 
