@@ -2,8 +2,8 @@
 
 [ELEGOO](https://www.elegoo.com/) has a number of printers, such as the
 [Saturn 3 Ultra](https://www.elegoo.com/products/elegoo-saturn-3-ultra-resin-3d-printer-12k)
-that support file transfer and printing over WiFi. As far as I could find, only Chitubox and
-Voxeldance Tango support this, but there was no way to print from Lychee or [UVTools](https://github.com/sn4k3/UVtools).
+that support file transfer and printing over WiFi. Chitubox, Voxeldance Tango, and Lychee support 
+this feature, but [UVTools](https://github.com/sn4k3/UVtools) does not offer a way to print using it.
 
 *Cassini* is a command-line tool to allow getting the status of your printer(s),
 transferring files to them, and starting a print. It has only been tested with a Saturn 3 Ultra,
