@@ -1,3 +1,8 @@
 __pycache__
 *~
 
+build/
+.eggs/
+eggs/
+*.egg-info/
+*.egg
