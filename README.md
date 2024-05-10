@@ -16,12 +16,16 @@ Copyright (C) 2023 Vladimir Vukicevic
 
 ## Usage
 
-Python 3 is required. Use `pip install -r requirements.txt` to install dependencies.
+Python 3 is required.
+
+Clone and install via pip: `pip install .`
+
+Install directly from git via pipx: `pipx install git+https://github.com/vvuk/cassini.git`
 
 ### Printer status
 
 ```
-$ ./cassini.py status
+$ cassini status
 192.168.7.128: Saturn3Ultra (ELEGOO Saturn 3 Ultra)  Status: 1
           Print Status: 2 Layers: 19/130
   File Transfer Status: 0
@@ -30,7 +34,7 @@ $ ./cassini.py status
 ### Printer(s) full status
 
 ```
-$ ./cassini.py status-full
+$ cassini status-full
 ```
 
 Will print out the full json status of all printers found.
@@ -39,14 +43,14 @@ Will print out the full json status of all printers found.
 ### Watch live print progress
 
 ```
-$ ./cassini.py watch [interval]
+$ cassini watch [interval]
 _STL_B_Warriors_1_Sword_Combined_Supported.goo |███████████████████████████████████▉ ︎   | 90% 
 ```
 
 ### File transfer
 
 ```
-$ ./cassini.py [--printer printer_ip] upload MyFile.goo
+$ cassini [--printer printer_ip] upload MyFile.goo
 15:39:15,190 INFO: Using printer Saturn3Ultra (ELEGOO Saturn 3 Ultra)
 MyFile.goo |████████████████████████████████████████| 100% [5750174/5750174] (3291238.22/s)
 ```
@@ -54,7 +58,7 @@ MyFile.goo |██████████████████████�
 ### Start a print (of an existing file)
 
 ```
-$ ./cassini.py [--printer printer_ip] print Myfile.goo
+$ cassini [--printer printer_ip] print Myfile.goo
 ```
 
 ### Connect printer(s) to particular MQTT server
@@ -168,14 +172,14 @@ The printer subscribes to a request topic specific to its mainboard ID `/sdcp/re
 
 Commands discovered:
 
-| ID  | Description | Data |
-|-----|-------------|------|
-| 0   | Unknown. Sent by CHITUBOX first. | None |
-| 1   | Unknown. Sent by CHITUBOX after 0. | None |
-| 64  | Maybe a disconnect? | None |
-| 128 | Start printing. | See below. |
-| 256 | Upload file. | See below. |
-| 512 | Set some kind of time period. | `{ "TimePeriod": 5000 }` |
+| ID  | Description                        | Data                     |
+| --- | ---------------------------------- | ------------------------ |
+| 0   | Unknown. Sent by CHITUBOX first.   | None                     |
+| 1   | Unknown. Sent by CHITUBOX after 0. | None                     |
+| 64  | Maybe a disconnect?                | None                     |
+| 128 | Start printing.                    | See below.               |
+| 256 | Upload file.                       | See below.               |
+| 512 | Set some kind of time period.      | `{ "TimePeriod": 5000 }` |
 
 #### 128: Start Printing
 
