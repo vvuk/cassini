@@ -31,6 +31,7 @@ class CurrentStatus(Enum):
 # Status field inside PrintInfo
 class PrintInfoStatus(Enum):
     # TODO: double check these
+    READY = 0
     EXPOSURE = 2 
     RETRACTING = 3
     LOWERING = 4
