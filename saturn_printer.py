@@ -13,9 +13,8 @@ import json
 import asyncio
 import logging
 import random
-from enum import Enum
+from enum import IntEnum
 
-import logging
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
 from scapy.all import IP, UDP, send
@@ -23,26 +22,47 @@ from scapy.all import IP, UDP, send
 SATURN_UDP_PORT = 3000
 
 # CurrentStatus field inside Status
-class CurrentStatus(Enum):
+class CurrentStatus(IntEnum):
     READY = 0
-    BUSY = 1 # Printer might be sitting at the "Completed" screen
-    # SATURN_STATUS_BUSY_2 = 1 # post-HEAD call on file transfer, along with SATURN_FILE_STATUS = 3 on error, and 2 on completion
+    BUSY = 1
+    TRANSFERRING = 2
+
+    @classmethod
+    def _missing_(cls, value):
+        obj = int.__new__(cls, value)
+        obj._name_ = f"UNKNOWN_{value}"
+        obj._value_ = value
+        return obj
 
 # Status field inside PrintInfo
-class PrintInfoStatus(Enum):
-    # TODO: double check these
-    EXPOSURE = 2 
+class PrintInfoStatus(IntEnum):
+    IDLE = 0
+    EXPOSURE = 2
     RETRACTING = 3
     LOWERING = 4
-    COMPLETE = 16 # pretty sure this is correct
+    COMPLETE = 16
+
+    @classmethod
+    def _missing_(cls, value):
+        obj = int.__new__(cls, value)
+        obj._name_ = f"UNKNOWN_{value}"
+        obj._value_ = value
+        return obj
 
 # Status field inside FileTransferInfo
-class FileStatus(Enum):
+class FileStatus(IntEnum):
     NONE = 0
     DONE = 2
     ERROR = 3
 
-class Command(Enum):
+    @classmethod
+    def _missing_(cls, value):
+        obj = int.__new__(cls, value)
+        obj._name_ = f"UNKNOWN_{value}"
+        obj._value_ = value
+        return obj
+
+class Command(IntEnum):
     CMD_0 = 0 # null data
     CMD_1 = 1 # null data
     DISCONNECT = 64 # Maybe disconnect?
@@ -115,8 +135,8 @@ class SaturnPrinter:
         self.id = desc['Data']['Attributes']['MainboardID'] 
         self.name = desc['Data']['Attributes']['Name']
         self.machine_name = desc['Data']['Attributes']['MachineName']
-        self.current_status = desc['Data']['Status']['CurrentStatus']
-        self.busy = self.current_status > 0
+        self.current_status = CurrentStatus(desc['Data']['Status']['CurrentStatus'])
+        self.busy = self.current_status != CurrentStatus.READY
 
     # Tell this printer to connect to the specified mqtt and http
     # servers, for further control
@@ -198,10 +218,12 @@ class SaturnPrinter:
 
                 # We assume that the printer immediately goes into BUSY status after it processes
                 # the upload command
-                if status['CurrentStatus'] == CurrentStatus.READY:
-                    if file_info['Status'] == FileStatus.DONE:
+                current_status = CurrentStatus(status['CurrentStatus'])
+                file_status = FileStatus(file_info['Status'])
+                if current_status == CurrentStatus.READY:
+                    if file_status == FileStatus.DONE:
                         self.file_transfer_future.set_result((total_size, total_size, file_name))
-                    elif file_info['Status'] == FileStatus.ERROR:
+                    elif file_status == FileStatus.ERROR:
                         logging.error("Transfer error!")
                         self.file_transfer_future.set_result((-1, total_size, file_name))
                     else:
@@ -265,7 +287,7 @@ class SaturnPrinter:
                 status = data['Data']['Status']
                 print_info = status['PrintInfo']
 
-                current_status = status['CurrentStatus']
+                current_status = CurrentStatus(status['CurrentStatus'])
                 print_status = print_info['Status']
 
                 if current_status == CurrentStatus.BUSY and print_status > 0:
@@ -302,7 +324,7 @@ class SaturnPrinter:
     def status(self):
         printinfo = self.desc['Data']['Status']['PrintInfo']
         return {
-            'status': self.desc['Data']['Status']['CurrentStatus'],
+            'status': CurrentStatus(self.desc['Data']['Status']['CurrentStatus']),
             'filename': printinfo['Filename'],
             'currentLayer': printinfo['CurrentLayer'],
             'totalLayers': printinfo['TotalLayer']
